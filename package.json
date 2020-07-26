@@ -1,0 +1,168 @@
+{
+	"name": "awstools",
+	"displayName": "AWSTools",
+	"description": "",
+	"version": "0.0.1",
+	"engines": {
+		"vscode": "^1.47.0"
+	},
+	"categories": [
+		"Other"
+	],
+	"activationEvents": [
+		"onCommand:awstools.addProfile",
+		"onView:awstoolsProfiles"
+	],
+	"main": "./out/extension.js",
+	"contributes": {
+		"commands": [
+			{
+				"command": "awstools.addProfile",
+				"title": "AWS Tools: Add Profile",
+				"icon": "$(add)"
+			},
+			{
+				"command": "awstools.removeProfile",
+				"title": "AWS Tools: Remove Profile",
+				"icon": "$(remove)"
+			},
+			{
+				"command": "awstools.addRegion",
+				"title": "AWS Tools: Add Region",
+				"icon": "$(add)"
+			},
+			{
+				"command": "awstools.removeRegion",
+				"title": "AWS Tools: Remove Region",
+				"icon": "$(remove)"
+			},
+			{
+				"command": "awstools.addService",
+				"title": "AWS Tools: Add Service",
+				"icon": "$(add)"
+			},
+			{
+				"command": "awstools.removeService",
+				"title": "AWS Tools: Remove Service",
+				"icon": "$(remove)"
+			},
+			{
+				"command": "awstools.addResource",
+				"title": "AWS Tools: Add Resource",
+				"icon": "$(add)"
+			},
+			{
+				"command": "awstools.removeResource",
+				"title": "AWS Tools: Remove Resource",
+				"icon": "$(remove)"
+			}
+		],
+		"viewsWelcome": [
+			{
+				"view": "awstoolsProfiles",
+				"contents": "No AWS profiles added.\nRequires a folder opened before using this extension",
+				"when": "workbenchState == empty"
+			},
+			{
+				"view": "awstoolsProfiles",
+				"contents": "No AWS profiles added.\n[Add AWS Profile](command:awstools.addProfile)",
+				"when": "workbenchState == folder"
+			},
+			{
+				"view": "awstoolsProfiles",
+				"contents": "No AWS profiles added.\nWorkspace is not supported yet.",
+				"when": "workbenchState == workspace"
+			}
+		],
+		"viewsContainers": {
+			"activitybar": [
+				{
+					"id": "awstools",
+					"title": "AWS Tools",
+					"icon": "resources/logo.png"
+				}
+			]
+		},
+		"views": {
+			"awstools": [
+				{
+					"id": "awstoolsProfiles",
+					"name": "Profiles"
+				}
+			]
+		},
+		"menus": {
+			"view/title": [
+				{
+					"command": "awstools.addProfile",
+					"when": "view == awstoolsProfiles",
+					"group": "navigation"
+				}
+			],
+			"view/item/context": [
+				{
+					"command": "awstools.removeProfile",
+					"when": "view == awstoolsProfiles && viewItem == awsProfile",
+					"group": "inline"
+				},
+				{
+					"command": "awstools.addRegion",
+					"when": "view == awstoolsProfiles && viewItem == awsProfile",
+					"group": "inline"
+				},
+				{
+					"command": "awstools.removeRegion",
+					"when": "view == awstoolsProfiles && viewItem == awsRegion",
+					"group": "inline"
+				},
+				{
+					"command": "awstools.addService",
+					"when": "view == awstoolsProfiles && viewItem == awsRegion",
+					"group": "inline"
+				},
+				{
+					"command": "awstools.removeService",
+					"when": "view == awstoolsProfiles && viewItem == awsService",
+					"group": "inline"
+				},
+				{
+					"command": "awstools.addResource",
+					"when": "view == awstoolsProfiles && viewItem == awsService",
+					"group": "inline"
+				},
+				{
+					"command": "awstools.removeResource",
+					"when": "view == awstoolsProfiles && viewItem == awsResource",
+					"group": "inline"
+				}
+			]
+		}
+	},
+	"scripts": {
+		"vscode:prepublish": "npm run compile",
+		"compile": "tsc -p ./",
+		"lint": "eslint src --ext ts",
+		"watch": "tsc -watch -p ./",
+		"pretest": "npm run compile && npm run lint",
+		"test": "node ./out/test/runTest.js"
+	},
+	"devDependencies": {
+		"@types/aws-sdk": "^2.7.0",
+		"@types/glob": "^7.1.1",
+		"@types/ini": "^1.3.30",
+		"@types/mocha": "^7.0.2",
+		"@types/node": "^13.13.14",
+		"@types/vscode": "^1.47.0",
+		"@typescript-eslint/eslint-plugin": "^2.30.0",
+		"@typescript-eslint/parser": "^2.30.0",
+		"eslint": "^6.8.0",
+		"glob": "^7.1.6",
+		"mocha": "^7.1.2",
+		"typescript": "^3.8.3",
+		"vscode-test": "^1.3.0"
+	},
+	"dependencies": {
+		"aws-sdk": "^2.720.0",
+		"ini": "^1.3.5"
+	}
+}

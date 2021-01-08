@@ -9,18 +9,12 @@ export class TreeItemS3Folder extends vscode.TreeItem {
         public readonly label: string
     ) {
         super(label, vscode.TreeItemCollapsibleState.Collapsed);
+        this.tooltip = '';
+        this.description = '';
     }
 
     getChildren(): Thenable<vscode.TreeItem[]> {
         return getS3Objects(this.profileName, this.regionName, this.bucketName, this.label);
-    }
-
-    get tooltip(): string {
-        return '';
-    }
-
-    get description(): string {
-        return '';
     }
 
     contextValue = 's3Folder';

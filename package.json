@@ -9,11 +9,10 @@
 	"categories": [
 		"Other"
 	],
-	"activationEvents": [
-		"onCommand:awstools.addProfile",
-		"onView:awstoolsProfiles"
-	],
 	"main": "./out/extension.js",
+	"activationEvents": [
+		"onView:awstoolsWorkspaces"
+	],
 	"contributes": {
 		"commands": [
 			{
@@ -59,19 +58,9 @@
 		],
 		"viewsWelcome": [
 			{
-				"view": "awstoolsProfiles",
-				"contents": "No AWS profiles added.\nRequires a folder opened before using this extension",
+				"view": "awstoolsWorkspaces",
+				"contents": "No AWS profiles added.\nRequires a folder or a workspace opened before using this extension",
 				"when": "workbenchState == empty"
-			},
-			{
-				"view": "awstoolsProfiles",
-				"contents": "No AWS profiles added.\n[Add AWS Profile](command:awstools.addProfile)",
-				"when": "workbenchState == folder"
-			},
-			{
-				"view": "awstoolsProfiles",
-				"contents": "No AWS profiles added.\nWorkspace is not supported yet.",
-				"when": "workbenchState == workspace"
 			}
 		],
 		"viewsContainers": {
@@ -86,53 +75,51 @@
 		"views": {
 			"awstools": [
 				{
-					"id": "awstoolsProfiles",
-					"name": "Profiles"
+					"id": "awstoolsWorkspaces",
+					"name": "Workspaces"
 				}
 			]
 		},
 		"menus": {
-			"view/title": [
-				{
-					"command": "awstools.addProfile",
-					"when": "view == awstoolsProfiles",
-					"group": "navigation"
-				}
-			],
 			"view/item/context": [
 				{
+					"command": "awstools.addProfile",
+					"when": "view == awstoolsWorkspaces && viewItem == workspace",
+					"group": "inline"
+				},
+				{
 					"command": "awstools.removeProfile",
-					"when": "view == awstoolsProfiles && viewItem == awsProfile",
+					"when": "view == awstoolsWorkspaces && viewItem == awsProfile",
 					"group": "inline"
 				},
 				{
 					"command": "awstools.addRegion",
-					"when": "view == awstoolsProfiles && viewItem == awsProfile",
+					"when": "view == awstoolsWorkspaces && viewItem == awsProfile",
 					"group": "inline"
 				},
 				{
 					"command": "awstools.removeRegion",
-					"when": "view == awstoolsProfiles && viewItem == awsRegion",
+					"when": "view == awstoolsWorkspaces && viewItem == awsRegion",
 					"group": "inline"
 				},
 				{
 					"command": "awstools.addService",
-					"when": "view == awstoolsProfiles && viewItem == awsRegion",
+					"when": "view == awstoolsWorkspaces && viewItem == awsRegion",
 					"group": "inline"
 				},
 				{
 					"command": "awstools.removeService",
-					"when": "view == awstoolsProfiles && viewItem == awsService",
+					"when": "view == awstoolsWorkspaces && viewItem == awsService",
 					"group": "inline"
 				},
 				{
 					"command": "awstools.addResource",
-					"when": "view == awstoolsProfiles && viewItem == awsService",
+					"when": "view == awstoolsWorkspaces && viewItem == awsService",
 					"group": "inline"
 				},
 				{
 					"command": "awstools.removeResource",
-					"when": "view == awstoolsProfiles && viewItem == awsResource",
+					"when": "view == awstoolsWorkspaces && viewItem == awsResource",
 					"group": "inline"
 				}
 			]

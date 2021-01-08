@@ -1,9 +1,10 @@
 import * as vscode from 'vscode';
 
-import { getS3Objects } from '../utils';
+import { getLambdaFunctionTreeItems, getS3Objects } from '../utils';
 
-export class TreeItemAwsResource extends vscode.TreeItem {
+export class TreeItemAwsLambdaResource extends vscode.TreeItem {
     constructor(
+        public readonly workspaceName: string,
         public readonly profileName: string,
         public readonly regionName: string,
         public readonly serviceName: string,
@@ -11,23 +12,36 @@ export class TreeItemAwsResource extends vscode.TreeItem {
         public readonly collapsibleState: vscode.TreeItemCollapsibleState
     ) {
         super(label, collapsibleState);
+        this.tooltip = '';
+        this.description = '';
     }
 
     getChildren(): Thenable<vscode.TreeItem[]> {
-        switch (this.serviceName) {
-            case "S3":
-                return getS3Objects(this.profileName, this.regionName, this.label);
-            default:
-                return Promise.reject(`service name ${this.serviceName} is not supported yet`);
-        }
+        let children: vscode.TreeItem[] = [];
+        children.push(new vscode.TreeItem('Versions'));
+        children.push(new vscode.TreeItem('Aliases'));
+
+        return Promise.resolve(children);
     }
 
-    get tooltip(): string {
-        return '';
+}
+
+export class TreeItemAwsUnknownResource extends vscode.TreeItem {
+    constructor(
+        public readonly workspaceName: string,
+        public readonly profileName: string,
+        public readonly regionName: string,
+        public readonly serviceName: string,
+        public readonly label: string,
+        public readonly collapsibleState: vscode.TreeItemCollapsibleState
+    ) {
+        super(label, collapsibleState);
+        this.tooltip = '';
+        this.description = '';
     }
 
-    get description(): string {
-        return '';
+    getChildren(): Thenable<vscode.TreeItem[]> {
+        return Promise.resolve([]);
     }
 
 }

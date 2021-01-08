@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 
 export class TreeItemAwsService extends vscode.TreeItem {
     constructor(
+        public readonly workspaceName: string,
         public readonly profileName: string,
         public readonly regionName: string,
         public readonly label: string,
@@ -9,14 +10,8 @@ export class TreeItemAwsService extends vscode.TreeItem {
         private readonly resources: vscode.TreeItem[]
     ) {
         super(label, collapsibleState);
-    }
-
-    get tooltip(): string {
-        return '';
-    }
-
-    get description(): string {
-        return `(${this.resources.length})`;
+        this.tooltip = '';
+        this.description = `(${this.resources.length})`;
     }
 
     getChildren(): vscode.TreeItem[] {

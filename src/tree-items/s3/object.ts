@@ -12,18 +12,12 @@ export class TreeItemS3Object extends vscode.TreeItem {
      */
     constructor(public readonly label: string, public readonly obj: any) {
         super(label, vscode.TreeItemCollapsibleState.None);
+        this.tooltip = `Size: ${this.obj.Size}`;
+        this.description = '';
     }
 
     getChildren(): Thenable<vscode.TreeItem[]> {
         return Promise.resolve([]);
-    }
-
-    get tooltip(): string {
-        return `Size: ${this.obj.Size}`;
-    }
-
-    get description(): string {
-        return '';
     }
 
     contextValue = 's3Object';

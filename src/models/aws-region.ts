@@ -4,8 +4,9 @@ import { AwsProfile } from './aws-profile';
 import { AwsService } from './aws-service';
 import { TreeItemAwsRegion } from '../tree-items/aws-region';
 import { collapsibleState } from '../utils';
+import { ITreeItemModel } from './tree-item-model';
 
-export class AwsRegion {
+export class AwsRegion implements ITreeItemModel {
     public readonly parent: AwsProfile;
     public readonly name: string;
     public expanded: boolean;
@@ -54,7 +55,7 @@ export class AwsRegion {
         for (let s of this.services) {
             services.push(s.toTreeItem());
         }
-        return new TreeItemAwsRegion(this.parent.name, this.name, collapsibleState(this.expanded), services);
+        return new TreeItemAwsRegion(this.parent.parent.name, this.parent.name, this.name, collapsibleState(this.expanded), services);
     }
 
     toSerializableObject(): Object {

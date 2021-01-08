@@ -3,13 +3,17 @@ import * as vscode from 'vscode';
 import { AwsRegion } from './aws-region';
 import { TreeItemAwsProfile } from '../tree-items/aws-profile';
 import { collapsibleState } from '../utils';
+import { Workspace } from './workspace';
+import { ITreeItemModel } from './tree-item-model';
 
-export class AwsProfile {
+export class AwsProfile implements ITreeItemModel {
+    public readonly parent: Workspace;
     public readonly name: string;
     public expanded: boolean;
     public regions: AwsRegion[];
 
-    constructor(obj: any) {
+    constructor(parent: Workspace, obj: any) {
+        this.parent = parent;
         this.name = obj.name || 'no name (profile)';
         this.expanded = !!obj.expanded;
 
@@ -52,7 +56,7 @@ export class AwsProfile {
         for (let r of this.regions) {
             regions.push(r.toTreeItem());
         }
-        return new TreeItemAwsProfile(this.name, collapsibleState(this.expanded), regions);
+        return new TreeItemAwsProfile(this.parent.name, this.name, collapsibleState(this.expanded), regions);
     }
 
     toSerializableObject(): Object {

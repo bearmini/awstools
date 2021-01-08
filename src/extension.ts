@@ -7,8 +7,19 @@ import { AwsProfilesProvider } from './aws-profiles-provider';
 // your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
 	console.log("awstools: activated");
-	const awsProfilesProvider = new AwsProfilesProvider(vscode.workspace.rootPath);
-	vscode.window.registerTreeDataProvider('awstoolsProfiles', awsProfilesProvider);
+	const awsProfilesProvider = new AwsProfilesProvider(vscode.workspace.workspaceFolders);
+	const treeView = vscode.window.createTreeView('awstoolsWorkspaces', {
+		treeDataProvider: awsProfilesProvider,
+	});
+	treeView.onDidExpandElement((ev: vscode.TreeViewExpansionEvent<vscode.TreeItem>) => {
+		console.log("treeView.onDidExpandElement:", ev);
+		awsProfilesProvider.onTreeViewItemExpanded(ev);
+	});
+	treeView.onDidCollapseElement((ev: vscode.TreeViewExpansionEvent<vscode.TreeItem>) => {
+		console.log("treeView.onDidCollapseElement:", ev);
+		awsProfilesProvider.onTreeViewItemCollapsed(ev);
+	});
+
 
 	context.subscriptions.push(vscode.commands.registerCommand('awstools.addProfile', (context) => awsProfilesProvider.handleCommandAddProfile(context)));
 	context.subscriptions.push(vscode.commands.registerCommand('awstools.removeProfile', (context) => awsProfilesProvider.handleCommandRemoveProfile(context)));

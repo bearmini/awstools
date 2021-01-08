@@ -2,10 +2,12 @@ import * as vscode from 'vscode';
 
 import { AwsRegion } from './aws-region';
 import { AwsResource } from './aws-resource';
+import { AwsResourceFactory } from './aws-resource-factory';
 import { TreeItemAwsService } from '../tree-items/aws-service';
 import { collapsibleState } from '../utils';
+import { ITreeItemModel } from './tree-item-model';
 
-export class AwsService {
+export class AwsService implements ITreeItemModel {
     public readonly parent: AwsRegion;
     public readonly name: string;
     public expanded: boolean;
@@ -18,7 +20,7 @@ export class AwsService {
         this.resources = [];
         if (obj.resources && Array.isArray(obj.resources)) {
             for (let r of obj.resources) {
-                this.resources.push(new AwsResource(this, r));
+                this.resources.push(AwsResourceFactory.new(this, r));
             }
         }
     }
@@ -28,7 +30,7 @@ export class AwsService {
             console.log(`resource name ${resourceName} is already added.`);
             return;
         }
-        this.resources.push(new AwsResource(this, { name: resourceName }));
+        this.resources.push(AwsResourceFactory.new(this, { name: resourceName }));
     }
 
     removeResource(resourceName: string) {
@@ -54,7 +56,11 @@ export class AwsService {
         for (let r of this.resources) {
             resources.push(r.toTreeItem());
         }
-        return new TreeItemAwsService(this.parent.parent.name, this.parent.name, this.name, collapsibleState(this.expanded), resources);
+
+        const region = this.parent;
+        const profile = region.parent;
+        const workspace = profile.parent;
+        return new TreeItemAwsService(workspace.name, profile.name, region.name, this.name, collapsibleState(this.expanded), resources);
     }
 
     toSerializableObject(): Object {

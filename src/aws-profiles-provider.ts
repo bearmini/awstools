@@ -8,23 +8,74 @@ import * as AWS from 'aws-sdk';
 import { AwsProfile } from './models/aws-profile';
 import { AwsRegion } from './models/aws-region';
 import { AwsService } from './models/aws-service';
+import { ITreeItemModel } from './models/tree-item-model';
 import { TreeItemAwsProfile } from './tree-items/aws-profile';
 import { TreeItemAwsRegion } from './tree-items/aws-region';
-import { TreeItemAwsResource } from './tree-items/aws-resource';
+import { TreeItemAwsLambdaResource } from './tree-items/aws-resource';
 import { TreeItemAwsService } from './tree-items/aws-service';
+import { TreeItemNoProfiles } from './tree-items/no-profiles';
 import { TreeItemNoRegions } from './tree-items/no-regions';
 import { TreeItemNoResources } from './tree-items/no-resources';
 import { TreeItemNoServices } from './tree-items/no-services';
 import { TreeItemS3Folder } from './tree-items/s3/folder';
+import { TreeItemWorkspace } from './tree-items/workspace';
+import { getLambdaFunctions, getEC2Instances, getEC2SecurityGroups } from './utils';
+import { AwsResource } from './models/aws-resource';
+import { Workspace } from './models/workspace';
+
+class ResourceQuickPickItem implements vscode.QuickPickItem {
+    constructor(public label: string, public id: string) {
+    }
+}
 
 export class AwsProfilesProvider implements vscode.TreeDataProvider<vscode.TreeItem> {
-    private awsProfiles: AwsProfile[];
+    private workspaces: Workspace[];
 
     private _onDidChangeTreeData: vscode.EventEmitter<vscode.TreeItem | undefined> = new vscode.EventEmitter<vscode.TreeItem | undefined>();
     readonly onDidChangeTreeData: vscode.Event<vscode.TreeItem | undefined> = this._onDidChangeTreeData.event;
 
-    constructor(private workspaceRoot: string | undefined) {
-        this.awsProfiles = this.load();
+    constructor(private readonly workspaceFolders: readonly vscode.WorkspaceFolder[] | undefined) {
+        this.workspaces = this.load();
+    }
+
+    onTreeViewItemCollapsed(ev: vscode.TreeViewExpansionEvent<vscode.TreeItem>) {
+        this.onTreeViewItemExpandedOrCollapsed(ev, false);
+    }
+
+    onTreeViewItemExpanded(ev: vscode.TreeViewExpansionEvent<vscode.TreeItem>) {
+        this.onTreeViewItemExpandedOrCollapsed(ev, true);
+    }
+
+    onTreeViewItemExpandedOrCollapsed(ev: vscode.TreeViewExpansionEvent<vscode.TreeItem>, expanded: boolean) {
+        const model = this.findModelForTreeItem(ev.element);
+        if (model) {
+            model.expanded = expanded;
+            this.save();
+        }
+    }
+
+    findModelForTreeItem(treeItem: vscode.TreeItem): ITreeItemModel | undefined {
+        if (treeItem instanceof TreeItemWorkspace) {
+            return this.findWorkspaceByName(treeItem.label);
+        }
+
+        if (treeItem instanceof TreeItemAwsProfile) {
+            return this.findProfileByName(treeItem.workspaceName, treeItem.label);
+        }
+
+        if (treeItem instanceof TreeItemAwsRegion) {
+            return this.findRegionByName(treeItem.workspaceName, treeItem.profileName, treeItem.label);
+        }
+
+        if (treeItem instanceof TreeItemAwsService) {
+            return this.findServiceByName(treeItem.workspaceName, treeItem.profileName, treeItem.regionName, treeItem.label);
+        }
+
+        if (treeItem instanceof TreeItemAwsLambdaResource) {
+            return this.findResourceByName(treeItem.workspaceName, treeItem.profileName, treeItem.regionName, treeItem.serviceName, treeItem.label);
+        }
+
+        console.log("onTreeViewItemExpandedOrCollapsed: Unknown TreeItem type");
     }
 
     getTreeItem(element: vscode.TreeItem): vscode.TreeItem {
@@ -34,12 +85,20 @@ export class AwsProfilesProvider implements vscode.TreeDataProvider<vscode.TreeI
     getChildren(element?: vscode.TreeItem): Thenable<vscode.TreeItem[]> {
         console.log("getChildren(): element == ", element);
 
-        if (!element) { // returns items at root level i.e. profiles
+        if (!element) { // returns items at root level i.e. workspaces
             const treeItems: vscode.TreeItem[] = [];
-            for (let p of this.awsProfiles) {
-                treeItems.push(p.toTreeItem());
+            for (let ws of this.workspaces) {
+                treeItems.push(ws.toTreeItem());
             }
             return Promise.resolve(treeItems);
+        }
+
+        if (element instanceof TreeItemWorkspace) { // returns profile for the workspace
+            const children = element.getChildren();
+            if (children.length === 0) {
+                return Promise.resolve([new TreeItemNoProfiles(element.label)]);
+            }
+            return Promise.resolve(children);
         }
 
         if (element instanceof TreeItemAwsProfile) { // returns regions for the profile
@@ -66,7 +125,7 @@ export class AwsProfilesProvider implements vscode.TreeDataProvider<vscode.TreeI
             return Promise.resolve(children);
         }
 
-        if (element instanceof TreeItemAwsResource) { // returns items for the resource
+        if (element instanceof TreeItemAwsLambdaResource) { // returns items for the resource
             return element.getChildren().then((children) => {
                 if (children.length === 0) {
                     return Promise.resolve([new TreeItemNoResources()]);
@@ -82,14 +141,15 @@ export class AwsProfilesProvider implements vscode.TreeDataProvider<vscode.TreeI
         return Promise.resolve([]);
     }
 
-    getProfileCandidates(): string[] {
-        if (!this.workspaceRoot) {
+    getProfileCandidates(workspaceName: string): string[] {
+        const ws = this.findWorkspaceByName(workspaceName);
+        if (!ws) {
             return [];
         }
 
         let candidates: string[] = this.loadAwsProfilesFromCredentialsFile();
 
-        for (let profile of this.awsProfiles) {
+        for (let profile of ws.profiles) {
             candidates = this.removeIfExists(candidates, profile.name);
         }
 
@@ -129,16 +189,19 @@ export class AwsProfilesProvider implements vscode.TreeDataProvider<vscode.TreeI
         });
     }
 
-    getServiceCandidates(profileName: string, regionName: string): string[] {
+    getServiceCandidates(workspaceName: string, profileName: string, regionName: string): string[] {
         let candidates = [
-            "AWS Lambda",
             "API Gateway",
             "CloudWatch Logs",
             "DynamoDB",
-            "S3"
+            "EC2 - Instances",
+            "EC2 - Security groups",
+            "Lambda",
+            "S3",
+            "VPC"
         ];
 
-        const profile = this.findProfileByName(profileName);
+        const profile = this.findProfileByName(workspaceName, profileName);
         if (!profile) {
             return candidates;
         }
@@ -155,8 +218,14 @@ export class AwsProfilesProvider implements vscode.TreeDataProvider<vscode.TreeI
         return candidates;
     }
 
-    async getResourceCandidates(profileName: string, regionName: string, serviceName: string): Promise<string[]> {
+    async getResourceCandidates(workspaceName: string, profileName: string, regionName: string, serviceName: string): Promise<vscode.QuickPickItem[]> {
         switch (serviceName) {
+            case 'EC2 - Instances':
+                return await this.getEC2InstanceResourceCandidates(workspaceName, profileName, regionName);
+            case 'EC2 - Security groups':
+                return await this.getEC2SecurityGroupResourceCandidates(workspaceName, profileName, regionName);
+            case 'Lambda':
+                return await this.getLambdaResourceCandidates(workspaceName, profileName, regionName);
             case 'S3':
                 return await this.getS3ResourceCandidates(profileName, regionName);
             default:
@@ -165,7 +234,113 @@ export class AwsProfilesProvider implements vscode.TreeDataProvider<vscode.TreeI
         }
     }
 
-    getS3ResourceCandidates(profileName: string, regionName: string): Thenable<string[]> {
+    async getEC2InstanceResourceCandidates(workspaceName: string, profileName: string, regionName: string): Promise<vscode.QuickPickItem[]> {
+        return new Promise(async (resolve, reject) => {
+            const instances = await getEC2Instances(profileName, regionName);
+            const result: vscode.QuickPickItem[] = [];
+
+            for (let i of instances) {
+                if (i.InstanceId) {
+                    if (!this.findEC2Instance(workspaceName, profileName, regionName, i.InstanceId)) {
+                        let name = '';
+                        if (i.Tags) {
+                            const nameTag = i.Tags.find((tag: AWS.EC2.Tag, index: number, obj: AWS.EC2.Tag[]) => {
+                                if (tag.Key && tag.Key === 'Name') {
+                                    return tag;
+                                }
+                            });
+                            if (nameTag && nameTag.Value) {
+                                name = nameTag.Value;
+                            }
+                        }
+                        result.push(new ResourceQuickPickItem(`${name} - ${i.InstanceId}`, i.InstanceId));
+                    }
+                }
+            }
+            resolve(result);
+        });
+    }
+
+    private findEC2Instance(workspaceName: string, profileName: string, regionName: string, instanceId: string): AwsResource | undefined {
+        const service = this.findServiceByName(workspaceName, profileName, regionName, 'Lambda');
+        if (!service) {
+            return;
+        }
+        for (let r of service.resources) {
+            if (r.name === instanceId) {
+                return r;
+            }
+        }
+    }
+
+    async getEC2SecurityGroupResourceCandidates(workspaceName: string, profileName: string, regionName: string): Promise<vscode.QuickPickItem[]> {
+        return new Promise(async (resolve, reject) => {
+            const sgs = await getEC2SecurityGroups(profileName, regionName);
+            const result: vscode.QuickPickItem[] = [];
+
+            for (let sg of sgs) {
+                if (sg.GroupId) {
+                    if (!this.findEC2SecurityGroup(workspaceName, profileName, regionName, sg.GroupId)) {
+                        let name = '';
+                        if (sg.Tags) {
+                            const nameTag = sg.Tags.find((tag: AWS.EC2.Tag, index: number, obj: AWS.EC2.Tag[]) => {
+                                if (tag.Key && tag.Key === 'Name') {
+                                    return tag;
+                                }
+                            });
+                            if (nameTag && nameTag.Value) {
+                                name = nameTag.Value;
+                            }
+                        }
+                        result.push(new ResourceQuickPickItem(`${name} - ${sg.GroupId}`, sg.GroupId));
+                    }
+                }
+            }
+            resolve(result);
+        });
+    }
+
+    private findEC2SecurityGroup(workspaceName: string, profileName: string, regionName: string, groupId: string): AwsResource | undefined {
+        const service = this.findServiceByName(workspaceName, profileName, regionName, 'Lambda');
+        if (!service) {
+            return;
+        }
+        for (let r of service.resources) {
+            if (r.id === groupId) {
+                return r;
+            }
+        }
+    }
+
+    async getLambdaResourceCandidates(workspaceName: string, profileName: string, regionName: string): Promise<vscode.QuickPickItem[]> {
+        return new Promise(async (resolve, reject) => {
+            const functions = await getLambdaFunctions(profileName, regionName);
+            const result: vscode.QuickPickItem[] = [];
+
+            for (let f of functions) {
+                if (f.FunctionName) {
+                    if (!this.findLambdaFunction(workspaceName, profileName, regionName, f.FunctionName)) {
+                        result.push(new ResourceQuickPickItem(f.FunctionName, f.FunctionName));
+                    }
+                }
+            }
+            resolve(result);
+        });
+    }
+
+    private findLambdaFunction(workspaceName: string, profileName: string, regionName: string, functionName: string): AwsResource | undefined {
+        const service = this.findServiceByName(workspaceName, profileName, regionName, 'Lambda');
+        if (!service) {
+            return;
+        }
+        for (let r of service.resources) {
+            if (r.name === functionName) {
+                return r;
+            }
+        }
+    }
+
+    getS3ResourceCandidates(profileName: string, regionName: string): Thenable<vscode.QuickPickItem[]> {
         return new Promise((resolve, reject) => {
             var creds = new AWS.SharedIniFileCredentials({ profile: profileName });
             const s3Client = new AWS.S3({ credentials: creds, region: regionName });
@@ -175,11 +350,11 @@ export class AwsProfilesProvider implements vscode.TreeDataProvider<vscode.TreeI
                     reject(err);
                 }
 
-                const buckets: string[] = [];
+                const buckets: vscode.QuickPickItem[] = [];
                 if (data && data.Buckets) {
                     for (let b of data.Buckets) {
                         if (b.Name) {
-                            buckets.push(b.Name);
+                            buckets.push(new ResourceQuickPickItem(b.Name, b.Name));
                         }
                     }
                 }
@@ -188,16 +363,21 @@ export class AwsProfilesProvider implements vscode.TreeDataProvider<vscode.TreeI
         });
     }
 
-    private findProfileByName(name: string): AwsProfile | undefined {
-        for (let p of this.awsProfiles) {
-            if (p.name === name) {
+    private findProfileByName(workspaceName: string, profileName: string): AwsProfile | undefined {
+        const ws = this.findWorkspaceByName(workspaceName);
+        if (!ws) {
+            return;
+        }
+
+        for (let p of ws.profiles) {
+            if (p.name === profileName) {
                 return p;
             }
         }
     }
 
-    private findRegionByName(profileName: string, regionName: string): AwsRegion | undefined {
-        const profile = this.findProfileByName(profileName);
+    private findRegionByName(workspaceName: string, profileName: string, regionName: string): AwsRegion | undefined {
+        const profile = this.findProfileByName(workspaceName, profileName);
         if (!profile) {
             return;
         }
@@ -209,8 +389,8 @@ export class AwsProfilesProvider implements vscode.TreeDataProvider<vscode.TreeI
         }
     }
 
-    private findServiceByName(profileName: string, regionName: string, serviceName: string): AwsService | undefined {
-        const region = this.findRegionByName(profileName, regionName);
+    private findServiceByName(workspaceName: string, profileName: string, regionName: string, serviceName: string): AwsService | undefined {
+        const region = this.findRegionByName(workspaceName, profileName, regionName);
         if (!region) {
             return;
         }
@@ -222,26 +402,45 @@ export class AwsProfilesProvider implements vscode.TreeDataProvider<vscode.TreeI
         }
     }
 
-    addProfile(profileName: string) {
-        this.awsProfiles.push(new AwsProfile({ name: profileName, expanded: false, services: [] }));
-        this.save();
-        this.refresh();
-    }
+    private findResourceByName(workspaceName: string, profileName: string, regionName: string, serviceName: string, resourceName: string): ITreeItemModel | undefined {
+        const service = this.findServiceByName(workspaceName, profileName, regionName, serviceName);
+        if (!service) {
+            return;
+        }
 
-    removeProfile(profileName: string) {
-        const newProfiles: AwsProfile[] = [];
-        for (let p of this.awsProfiles) {
-            if (p.name !== profileName) {
-                newProfiles.push(p);
+        for (let r of service.resources) {
+            if (r.name === resourceName) {
+                return r;
             }
         }
-        this.awsProfiles = newProfiles;
+    }
+
+    addProfile(workspaceName: string, profileName: string) {
+        const ws = this.findWorkspaceByName(workspaceName);
+        if (!ws) {
+            console.log(`no workspace found: ${workspaceName}`);
+            return;
+        }
+
+        ws.addProfile(profileName);
         this.save();
         this.refresh();
     }
 
-    addRegion(profileName: string, regionName: string) {
-        const profile = this.findProfileByName(profileName);
+    removeProfile(workspaceName: string, profileName: string) {
+        const ws = this.findWorkspaceByName(workspaceName);
+        if (!ws) {
+            console.log(`no workspace found: ${workspaceName}`);
+            return;
+        }
+
+        ws.removeProfile(profileName);
+        this.save();
+        this.refresh();
+    }
+
+    addRegion(workspaceName: string, profileName: string, regionName: string) {
+        const profile = this.findProfileByName(workspaceName, profileName);
         if (!profile) {
             console.log(`no profile found: ${profileName}`);
             return;
@@ -252,8 +451,8 @@ export class AwsProfilesProvider implements vscode.TreeDataProvider<vscode.TreeI
         this.refresh();
     }
 
-    removeRegion(profileName: string, regionName: string) {
-        const profile = this.findProfileByName(profileName);
+    removeRegion(workspaceName: string, profileName: string, regionName: string) {
+        const profile = this.findProfileByName(workspaceName, profileName);
         if (!profile) {
             console.log(`no profile found: ${profileName}`);
             return;
@@ -264,8 +463,8 @@ export class AwsProfilesProvider implements vscode.TreeDataProvider<vscode.TreeI
         this.refresh();
     }
 
-    addService(profileName: string, regionName: string, serviceName: string) {
-        const region = this.findRegionByName(profileName, regionName);
+    addService(workspaceName: string, profileName: string, regionName: string, serviceName: string) {
+        const region = this.findRegionByName(workspaceName, profileName, regionName);
         if (!region) {
             console.log(`no region found: ${regionName}`);
             return;
@@ -276,8 +475,8 @@ export class AwsProfilesProvider implements vscode.TreeDataProvider<vscode.TreeI
         this.refresh();
     }
 
-    removeService(profileName: string, regionName: string, serviceName: string) {
-        const region = this.findRegionByName(profileName, regionName);
+    removeService(workspaceName: string, profileName: string, regionName: string, serviceName: string) {
+        const region = this.findRegionByName(workspaceName, profileName, regionName);
         if (!region) {
             console.log(`no region found: ${regionName}`);
             return;
@@ -288,8 +487,8 @@ export class AwsProfilesProvider implements vscode.TreeDataProvider<vscode.TreeI
         this.refresh();
     }
 
-    addResource(profileName: string, regionName: string, serviceName: string, resourceName: string) {
-        const service = this.findServiceByName(profileName, regionName, serviceName);
+    addResource(workspaceName: string, profileName: string, regionName: string, serviceName: string, resourceName: string) {
+        const service = this.findServiceByName(workspaceName, profileName, regionName, serviceName);
         if (!service) {
             console.log(`no service found: ${serviceName}`);
             return;
@@ -300,8 +499,8 @@ export class AwsProfilesProvider implements vscode.TreeDataProvider<vscode.TreeI
         this.refresh();
     }
 
-    removeResource(profileName: string, regionName: string, serviceName: string, resourceName: string) {
-        const service = this.findServiceByName(profileName, regionName, resourceName);
+    removeResource(workspaceName: string, profileName: string, regionName: string, serviceName: string, resourceName: string) {
+        const service = this.findServiceByName(workspaceName, profileName, regionName, resourceName);
         if (!service) {
             console.log(`no service found: ${serviceName}`);
             return;
@@ -319,10 +518,11 @@ export class AwsProfilesProvider implements vscode.TreeDataProvider<vscode.TreeI
     handleCommandAddProfile(context: any) {
         try {
             console.log('handling command [awstools.addProfile]:', context);
-            const profiles = this.getProfileCandidates();
+            const workspaceName = context.label;
+            const profiles = this.getProfileCandidates(workspaceName);
             vscode.window.showQuickPick(profiles).then((selected) => {
                 if (selected) {
-                    this.addProfile(selected);
+                    this.addProfile(workspaceName, selected);
                 }
             });
         } catch (err) {
@@ -341,7 +541,7 @@ export class AwsProfilesProvider implements vscode.TreeDataProvider<vscode.TreeI
                     if (!value) {
                         return;
                     }
-                    this.removeProfile(context.label);
+                    this.removeProfile(context.workspaceName, context.label);
                 });
             }
         } catch (err) {
@@ -353,12 +553,13 @@ export class AwsProfilesProvider implements vscode.TreeDataProvider<vscode.TreeI
         try {
             console.log('handling command [awstools.addRegion]:', context);
             if (context instanceof TreeItemAwsProfile) {
+                const ws = context.workspaceName;
                 const profile = context.label;
                 this.getRegionCandidates(profile).then((regions) => {
                     console.log(regions);
                     vscode.window.showQuickPick(regions).then((selected) => {
                         if (selected) {
-                            this.addRegion(profile, selected);
+                            this.addRegion(ws, profile, selected);
                         }
                     });
                 });
@@ -374,6 +575,7 @@ export class AwsProfilesProvider implements vscode.TreeDataProvider<vscode.TreeI
         try {
             console.log('handling command [awstools.removeRegion]:', context);
             if (context instanceof TreeItemAwsRegion) {
+                const ws = context.workspaceName;
                 const options: vscode.MessageOptions = {
                     modal: true
                 };
@@ -381,7 +583,7 @@ export class AwsProfilesProvider implements vscode.TreeDataProvider<vscode.TreeI
                     if (!value) {
                         return;
                     }
-                    this.removeRegion(context.profileName, context.label);
+                    this.removeRegion(ws, context.profileName, context.label);
                 });
             }
         } catch (err) {
@@ -393,12 +595,13 @@ export class AwsProfilesProvider implements vscode.TreeDataProvider<vscode.TreeI
         try {
             console.log('handling command [awstools.addService]:', context);
             if (context instanceof TreeItemAwsRegion) {
+                const ws = context.workspaceName;
                 const profile = context.profileName;
                 const region = context.label;
-                const services = this.getServiceCandidates(profile, region);
+                const services = this.getServiceCandidates(ws, profile, region);
                 vscode.window.showQuickPick(services).then((selected) => {
                     if (selected) {
-                        this.addService(profile, region, selected);
+                        this.addService(ws, profile, region, selected);
                     }
                 });
             } else {
@@ -420,7 +623,7 @@ export class AwsProfilesProvider implements vscode.TreeDataProvider<vscode.TreeI
                     if (!value) {
                         return;
                     }
-                    this.removeService(context.profileName, context.regionName, context.label);
+                    this.removeService(context.workspaceName, context.profileName, context.regionName, context.label);
                 });
             }
         } catch (err) {
@@ -432,13 +635,14 @@ export class AwsProfilesProvider implements vscode.TreeDataProvider<vscode.TreeI
         try {
             console.log('handling command [awstools.addResource]:', context);
             if (context instanceof TreeItemAwsService) {
+                const ws = context.workspaceName;
                 const profile = context.profileName;
                 const region = context.regionName;
                 const service = context.label;
-                const resources = this.getResourceCandidates(profile, region, service);
+                const resources = this.getResourceCandidates(ws, profile, region, service);
                 vscode.window.showQuickPick(resources).then((selected) => {
-                    if (selected) {
-                        this.addResource(profile, region, service, selected);
+                    if (selected && selected instanceof ResourceQuickPickItem) {
+                        this.addResource(ws, profile, region, service, selected.id);
                     }
                 });
             } else {
@@ -452,7 +656,7 @@ export class AwsProfilesProvider implements vscode.TreeDataProvider<vscode.TreeI
     handleCommandRemoveResource(context: any) {
         try {
             console.log('handling command [awstools.removeResource]:', context);
-            if (context instanceof TreeItemAwsResource) {
+            if (context instanceof TreeItemAwsLambdaResource) {
                 const options: vscode.MessageOptions = {
                     modal: true
                 };
@@ -460,7 +664,7 @@ export class AwsProfilesProvider implements vscode.TreeDataProvider<vscode.TreeI
                     if (!value) {
                         return;
                     }
-                    this.removeResource(context.profileName, context.regionName, context.serviceName, context.label);
+                    this.removeResource(context.workspaceName, context.profileName, context.regionName, context.serviceName, context.label);
                 });
             }
         } catch (err) {
@@ -491,53 +695,80 @@ export class AwsProfilesProvider implements vscode.TreeDataProvider<vscode.TreeI
         return Object.keys(credentials);
     }
 
-    private load(): AwsProfile[] {
-        if (!this.workspaceRoot) {
-            console.log("load: workspaceRoot is undefined");
-            return [];
+    private load(): Workspace[] {
+        const result: Workspace[] = [];
+
+        if (!this.workspaceFolders) {
+            console.log("load: workspaceFolders == undefined");
+            return result;
         }
 
-        const p = path.join(this.workspaceRoot, '.aws-tools.json');
-        if (!this.pathExists(p)) {
-            console.log('load: .aws-tools.json is not found. created.');
-            fs.writeFileSync(p, '[]', 'utf8');
-            return [];
+        for (let ws of this.workspaceFolders) {
+            const p = path.join(ws.uri.fsPath, '.aws-tools.json');
+
+            if (!this.pathExists(p)) {
+                console.log('load: .aws-tools.json is not found. created.');
+                fs.writeFileSync(p, '[]', 'utf8');
+                result.push(new Workspace({
+                    name: ws.name,
+                    profiles: [],
+                }));
+                continue;
+            }
+
+            result.push(this.loadWorkspace(ws.name, p));
         }
 
-        return this.loadProfiles(p);
+        return result;
     }
 
-    private loadProfiles(p: string): AwsProfile[] {
-        const profiles = JSON.parse(fs.readFileSync(p, 'utf8'));
-        const result: AwsProfile[] = [];
-        for (let p of profiles) {
+    private loadWorkspace(name: string, p: string): Workspace {
+        const workspaceObject = JSON.parse(fs.readFileSync(p, 'utf8')) as WorkspaceObject;
+        const profiles: AwsProfile[] = [];
+        const ws: Workspace = new Workspace({ name: name, expanded: workspaceObject.expanded });
+        for (let p of workspaceObject.profiles) {
             try {
-                result.push(new AwsProfile(p));
+                profiles.push(new AwsProfile(ws, p));
             } catch (err) {
                 console.error(err);
             }
         }
-        return result;
+        ws.profiles = profiles;
+        return ws;
     }
 
     private save() {
-        if (!this.workspaceRoot) {
+        if (!this.workspaceFolders) {
             return;
         }
 
-        const content = this.awsProfilesToJSON();
-        const p = path.join(this.workspaceRoot, '.aws-tools.json');
-        fs.writeFileSync(p, content, 'utf8');
+        for (let wsf of this.workspaceFolders) {
+            const ws = this.findWorkspaceByName(wsf.name);
+            if (!ws) {
+                continue;
+            }
+            const content = this.workspaceToJSON(ws);
+            const p = path.join(wsf.uri.fsPath, '.aws-tools.json');
+            fs.writeFileSync(p, content, 'utf8');
+        }
     }
 
-    private awsProfilesToJSON(): string {
-        const profiles: Object[] = [];
+    private findWorkspaceByName(name: string): Workspace | undefined {
+        for (let ws of this.workspaces) {
+            if (ws.name === name) {
+                return ws;
+            }
+        }
+    }
 
-        for (let p of this.awsProfiles) {
-            profiles.push(p.toSerializableObject());
+    private workspaceToJSON(workspace: Workspace): string {
+        let result: WorkspaceObject = new WorkspaceObject(workspace.expanded, []);
+
+        for (let p of workspace.profiles) {
+            result.profiles.push(p.toSerializableObject());
         }
 
-        return JSON.stringify(profiles, null, 2);
+        return JSON.stringify(result, null, 2);
     }
 
     private pathExists(p: string): boolean {
@@ -550,12 +781,6 @@ export class AwsProfilesProvider implements vscode.TreeDataProvider<vscode.TreeI
     }
 }
 
-
-
-class AwsResourceProperty {
-    constructor(
-        public readonly arn: string,
-        public readonly expanded: boolean,
-        public readonly properties: AwsResourceProperty[]
-    ) { }
+class WorkspaceObject {
+    constructor(public expanded: boolean, public profiles: Object[]) { }
 }

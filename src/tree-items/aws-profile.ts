@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 
 export class TreeItemAwsProfile extends vscode.TreeItem {
     constructor(
+        public readonly workspaceName: string,
         public readonly label: string,
         public readonly collapsibleState: vscode.TreeItemCollapsibleState,
         private readonly regions: vscode.TreeItem[]

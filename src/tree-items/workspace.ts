@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
+import { IHasChildren } from './has-children';
 
-export class TreeItemWorkspace extends vscode.TreeItem {
+export class TreeItemWorkspace extends vscode.TreeItem implements IHasChildren {
     constructor(
         public readonly label: string,
         public readonly collapsibleState: vscode.TreeItemCollapsibleState,
@@ -11,8 +12,8 @@ export class TreeItemWorkspace extends vscode.TreeItem {
         this.description = `(${this.profiles.length})`;
     }
 
-    getChildren(): vscode.TreeItem[] {
-        return this.profiles;
+    getChildren(): Thenable<vscode.TreeItem[]> {
+        return Promise.resolve(this.profiles);
     }
 
     contextValue = 'workspace';

@@ -34,6 +34,7 @@ export class AwsLambdaResource implements AwsResource {
 
     toSerializableObject(): Object {
         return {
+            id: this.id,
             name: this.name,
             expanded: this.expanded
         };

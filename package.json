@@ -51,6 +51,16 @@
 				"icon": "$(add)"
 			},
 			{
+				"command": "awstools.moveServiceUp",
+				"title": "AWS Tools: Move Service Up",
+				"icon": "$(arrow-up)"
+			},
+			{
+				"command": "awstools.moveServiceDown",
+				"title": "AWS Tools: Move Service Down",
+				"icon": "$(arrow-down)"
+			},
+			{
 				"command": "awstools.removeResource",
 				"title": "AWS Tools: Remove Resource",
 				"icon": "$(remove)"
@@ -105,6 +115,16 @@
 				{
 					"command": "awstools.addService",
 					"when": "view == awstoolsWorkspaces && viewItem == awsRegion",
+					"group": "inline"
+				},
+				{
+					"command": "awstools.moveServiceUp",
+					"when": "view == awstoolsWorkspaces && viewItem == awsService",
+					"group": "inline"
+				},
+				{
+					"command": "awstools.moveServiceDown",
+					"when": "view == awstoolsWorkspaces && viewItem == awsService",
 					"group": "inline"
 				},
 				{

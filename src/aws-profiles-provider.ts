@@ -22,6 +22,7 @@ import { TreeItemWorkspace } from './tree-items/workspace';
 import { getLambdaFunctions, getEC2Instances, getEC2SecurityGroups } from './utils';
 import { AwsResource } from './models/aws-resource';
 import { Workspace } from './models/workspace';
+import { IHasChildren } from './tree-items/has-children';
 
 class ResourceQuickPickItem implements vscode.QuickPickItem {
     constructor(public label: string, public id: string) {
@@ -82,6 +83,10 @@ export class AwsProfilesProvider implements vscode.TreeDataProvider<vscode.TreeI
         return element;
     }
 
+    hasChildren(arg: any): arg is IHasChildren {
+        return arg && arg.getChildren && typeof (arg.getChildren) === 'function';
+    }
+
     getChildren(element?: vscode.TreeItem): Thenable<vscode.TreeItem[]> {
         console.log("getChildren(): element == ", element);
 
@@ -93,51 +98,11 @@ export class AwsProfilesProvider implements vscode.TreeDataProvider<vscode.TreeI
             return Promise.resolve(treeItems);
         }
 
-        if (element instanceof TreeItemWorkspace) { // returns profile for the workspace
-            const children = element.getChildren();
-            if (children.length === 0) {
-                return Promise.resolve([new TreeItemNoProfiles(element.label)]);
-            }
-            return Promise.resolve(children);
-        }
-
-        if (element instanceof TreeItemAwsProfile) { // returns regions for the profile
-            const children = element.getChildren();
-            if (children.length === 0) {
-                return Promise.resolve([new TreeItemNoRegions(element.label)]);
-            }
-            return Promise.resolve(children);
-        }
-
-        if (element instanceof TreeItemAwsRegion) { // returns services for the region
-            const children = element.getChildren();
-            if (children.length === 0) {
-                return Promise.resolve([new TreeItemNoServices(element.label)]);
-            }
-            return Promise.resolve(children);
-        }
-
-        if (element instanceof TreeItemAwsService) { // returns resources for the service
-            const children = element.getChildren();
-            if (children.length === 0) {
-                return Promise.resolve([new TreeItemNoResources()]);
-            }
-            return Promise.resolve(children);
-        }
-
-        if (element instanceof TreeItemAwsLambdaResource) { // returns items for the resource
-            return element.getChildren().then((children) => {
-                if (children.length === 0) {
-                    return Promise.resolve([new TreeItemNoResources()]);
-                }
-                return Promise.resolve(children);
-            });
-        }
-
-        if (element instanceof TreeItemS3Folder) {
+        if (this.hasChildren(element)) {
             return element.getChildren();
         }
 
+        console.log('unknown type of element:', element);
         return Promise.resolve([]);
     }
 
@@ -629,6 +594,79 @@ export class AwsProfilesProvider implements vscode.TreeDataProvider<vscode.TreeI
         } catch (err) {
             console.log(err);
         }
+    }
+
+    handleCommandMoveServiceUp(context: any) {
+        try {
+            console.log('handling command [awstools.moveServiceUp]:', context);
+            if (context instanceof TreeItemAwsService) {
+                const ws = context.workspaceName;
+                const profile = context.profileName;
+                const region = context.regionName;
+                const service = context.label;
+                this.moveServiceUp(ws, profile, region, service);
+            }
+        } catch (err) {
+            console.log(err);
+        }
+    }
+
+    handleCommandMoveServiceDown(context: any) {
+        try {
+            console.log('handling command [awstools.moveServiceDown]:', context);
+            if (context instanceof TreeItemAwsService) {
+                const ws = context.workspaceName;
+                const profile = context.profileName;
+                const region = context.regionName;
+                const service = context.label;
+                this.moveServiceDown(ws, profile, region, service);
+            }
+        } catch (err) {
+            console.log(err);
+        }
+    }
+
+    private moveServiceUp(workspaceName: string, profileName: string, regionName: string, serviceName: string) {
+        const region = this.findRegionByName(workspaceName, profileName, regionName);
+        if (!region) {
+            return;
+        }
+        const index = this.findServiceIndex(region.services, serviceName);
+        if (index < 1) {
+            return;
+        }
+        this.swapArrayItem(region.services, index - 1, index);
+        this.save();
+        this.refresh();
+    }
+
+    private moveServiceDown(workspaceName: string, profileName: string, regionName: string, serviceName: string) {
+        const region = this.findRegionByName(workspaceName, profileName, regionName);
+        if (!region) {
+            return;
+        }
+        const index = this.findServiceIndex(region.services, serviceName);
+        if (index === -1 || index >= region.services.length - 2) {
+            return;
+        }
+        this.swapArrayItem(region.services, index, index + 1);
+        this.save();
+        this.refresh();
+    }
+
+    private findServiceIndex(services: AwsService[], serviceName: string): number {
+        for (let i = 0; i < services.length; i++) {
+            if (services[i].name === serviceName) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private swapArrayItem(arr: any[], index1: number, index2: number) {
+        const tmp = arr[index1];
+        arr[index1] = arr[index2];
+        arr[index2] = tmp;
     }
 
     handleCommandAddResource(context: any) {

@@ -1,8 +1,11 @@
 import * as vscode from 'vscode';
 
-import { getLambdaFunctionTreeItems, getS3Objects } from '../utils';
+import { IHasChildren } from './has-children';
+import { TreeItemLambdaAliases } from './lambda/aliases';
+import { TreeItemLambdaVersions } from './lambda/versions';
 
-export class TreeItemAwsLambdaResource extends vscode.TreeItem {
+export class TreeItemAwsLambdaResource extends vscode.TreeItem implements IHasChildren {
+
     constructor(
         public readonly workspaceName: string,
         public readonly profileName: string,
@@ -18,15 +21,15 @@ export class TreeItemAwsLambdaResource extends vscode.TreeItem {
 
     getChildren(): Thenable<vscode.TreeItem[]> {
         let children: vscode.TreeItem[] = [];
-        children.push(new vscode.TreeItem('Versions'));
-        children.push(new vscode.TreeItem('Aliases'));
+        children.push(new TreeItemLambdaVersions(this.workspaceName, this.profileName, this.regionName, this.serviceName, this.label));
+        children.push(new TreeItemLambdaAliases(this.workspaceName, this.profileName, this.regionName, this.serviceName, this.label));
 
         return Promise.resolve(children);
     }
 
 }
 
-export class TreeItemAwsUnknownResource extends vscode.TreeItem {
+export class TreeItemAwsUnknownResource extends vscode.TreeItem implements IHasChildren {
     constructor(
         public readonly workspaceName: string,
         public readonly profileName: string,

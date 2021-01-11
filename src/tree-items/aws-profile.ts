@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
+import { IHasChildren } from './has-children';
 
-export class TreeItemAwsProfile extends vscode.TreeItem {
+export class TreeItemAwsProfile extends vscode.TreeItem implements IHasChildren {
     constructor(
         public readonly workspaceName: string,
         public readonly label: string,
@@ -8,18 +9,12 @@ export class TreeItemAwsProfile extends vscode.TreeItem {
         private readonly regions: vscode.TreeItem[]
     ) {
         super(label, collapsibleState);
+        this.tooltip = '';
+        this.description = `(${this.regions.length})`;
     }
 
-    get tooltip(): string {
-        return '';
-    }
-
-    get description(): string {
-        return `(${this.regions.length})`;
-    }
-
-    getChildren(): vscode.TreeItem[] {
-        return this.regions;
+    getChildren(): Thenable<vscode.TreeItem[]> {
+        return Promise.resolve(this.regions);
     }
 
     contextValue = 'awsProfile';

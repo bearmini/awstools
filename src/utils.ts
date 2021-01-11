@@ -1,7 +1,9 @@
 import * as vscode from 'vscode';
 import * as AWS from 'aws-sdk';
 
+import { TreeItemLambdaAlias } from './tree-items/lambda/alias';
 import { TreeItemLambdaFunction } from './tree-items/lambda/function';
+import { TreeItemLambdaVersion } from './tree-items/lambda/version';
 import { TreeItemS3Folder } from './tree-items/s3/folder';
 import { TreeItemS3Object } from './tree-items/s3/object';
 
@@ -107,9 +109,11 @@ export const getLambdaFunctions = (profileName: string, regionName: string): The
                 if (err) {
                     console.error(err);
                     reject(err);
+                    return;
                 }
                 if (!data) {
                     reject('no data recieved');
+                    return;
                 }
 
                 console.log('listFunctions() result ==', data);
@@ -125,6 +129,7 @@ export const getLambdaFunctions = (profileName: string, regionName: string): The
                     callApi();
                 } else {
                     resolve(result);
+                    return;
                 }
             });
         };
@@ -141,7 +146,119 @@ export const getLambdaFunctionTreeItems = (profileName: string, regionName: stri
                 result.push(new TreeItemLambdaFunction(f.FunctionName, f));
             }
         }
-        return Promise.resolve(result);
+        return resolve(result);
+    });
+};
+
+export const getLambdaVersions = (profileName: string, regionName: string, functionName: string): Thenable<AWS.Lambda.FunctionConfiguration[]> => {
+    return new Promise((resolve, reject) => {
+        const creds = new AWS.SharedIniFileCredentials({ profile: profileName });
+        const lambdaClient = new AWS.Lambda({ credentials: creds, region: regionName });
+
+        const params: AWS.Lambda.ListVersionsByFunctionRequest = {
+            FunctionName: functionName,
+        };
+
+        const result: AWS.Lambda.FunctionConfiguration[] = [];
+        const callApi = () => {
+            lambdaClient.listVersionsByFunction(params, (err, data) => {
+                if (err) {
+                    console.error(err);
+                    reject(err);
+                    return;
+                }
+                if (!data) {
+                    reject('no data recieved');
+                    return;
+                }
+
+                console.log('getLambdaVersions(): listVersionsByFunction() result ==', data);
+
+                if (data.Versions) {
+                    for (let v of data.Versions) {
+                        result.push(v);
+                    }
+                }
+
+                if (data.NextMarker) {
+                    params.Marker = data.NextMarker;
+                    callApi();
+                } else {
+                    resolve(result);
+                    return;
+                }
+            });
+        };
+        callApi();
+    });
+};
+
+export const getLambdaVersionTreeItems = (profileName: string, regionName: string, functionName: string): Thenable<vscode.TreeItem[]> => {
+    return new Promise(async (resolve, reject) => {
+        const result: vscode.TreeItem[] = [];
+        const functions = await getLambdaVersions(profileName, regionName, functionName);
+        for (let f of functions) {
+            if (f.FunctionName) {
+                result.push(new TreeItemLambdaVersion(f.Version || '', f));
+            }
+        }
+        return resolve(result);
+    });
+};
+
+export const getLambdaAliases = (profileName: string, regionName: string, functionName: string): Thenable<AWS.Lambda.AliasConfiguration[]> => {
+    return new Promise((resolve, reject) => {
+        const creds = new AWS.SharedIniFileCredentials({ profile: profileName });
+        const lambdaClient = new AWS.Lambda({ credentials: creds, region: regionName });
+
+        const params: AWS.Lambda.ListAliasesRequest = {
+            FunctionName: functionName,
+        };
+
+        const result: AWS.Lambda.AliasConfiguration[] = [];
+        const callApi = () => {
+            lambdaClient.listAliases(params, (err, data) => {
+                if (err) {
+                    console.error(err);
+                    reject(err);
+                    return;
+                }
+                if (!data) {
+                    reject('no data recieved');
+                    return;
+                }
+
+                console.log('getLambdaAliases(): listAliases() result ==', data);
+
+                if (data.Aliases) {
+                    for (let a of data.Aliases) {
+                        result.push(a);
+                    }
+                }
+
+                if (data.NextMarker) {
+                    params.Marker = data.NextMarker;
+                    callApi();
+                } else {
+                    resolve(result);
+                    return;
+                }
+            });
+        };
+        callApi();
+    });
+};
+
+export const getLambdaAliasesTreeItems = (profileName: string, regionName: string, functionName: string): Thenable<vscode.TreeItem[]> => {
+    return new Promise(async (resolve, reject) => {
+        const result: vscode.TreeItem[] = [];
+        const aliases = await getLambdaAliases(profileName, regionName, functionName);
+        for (let a of aliases) {
+            if (a.Name) {
+                result.push(new TreeItemLambdaAlias(a.Name, a));
+            }
+        }
+        return resolve(result);
     });
 };
 

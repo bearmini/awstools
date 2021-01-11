@@ -27,6 +27,8 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(vscode.commands.registerCommand('awstools.removeRegion', (context) => awsProfilesProvider.handleCommandRemoveRegion(context)));
 	context.subscriptions.push(vscode.commands.registerCommand('awstools.addService', (context) => awsProfilesProvider.handleCommandAddService(context)));
 	context.subscriptions.push(vscode.commands.registerCommand('awstools.removeService', (context) => awsProfilesProvider.handleCommandRemoveService(context)));
+	context.subscriptions.push(vscode.commands.registerCommand('awstools.moveServiceUp', (context) => awsProfilesProvider.handleCommandMoveServiceUp(context)));
+	context.subscriptions.push(vscode.commands.registerCommand('awstools.moveServiceDown', (context) => awsProfilesProvider.handleCommandMoveServiceDown(context)));
 	context.subscriptions.push(vscode.commands.registerCommand('awstools.addResource', (context) => awsProfilesProvider.handleCommandAddResource(context)));
 	context.subscriptions.push(vscode.commands.registerCommand('awstools.removeResource', (context) => awsProfilesProvider.handleCommandRemoveResource(context)));
 }

@@ -13,16 +13,12 @@ import { TreeItemAwsProfile } from './tree-items/aws-profile';
 import { TreeItemAwsRegion } from './tree-items/aws-region';
 import { TreeItemAwsLambdaResource } from './tree-items/aws-resource';
 import { TreeItemAwsService } from './tree-items/aws-service';
-import { TreeItemNoProfiles } from './tree-items/no-profiles';
-import { TreeItemNoRegions } from './tree-items/no-regions';
-import { TreeItemNoResources } from './tree-items/no-resources';
-import { TreeItemNoServices } from './tree-items/no-services';
-import { TreeItemS3Folder } from './tree-items/s3/folder';
 import { TreeItemWorkspace } from './tree-items/workspace';
-import { getLambdaFunctions, getEC2Instances, getEC2SecurityGroups } from './utils';
+import { getLambdaFunctions, getEC2Instances, getEC2SecurityGroups, downloadS3Object } from './utils';
 import { AwsResource } from './models/aws-resource';
 import { Workspace } from './models/workspace';
 import { IHasChildren } from './tree-items/has-children';
+import { TreeItemS3Object } from './tree-items/s3/object';
 
 class ResourceQuickPickItem implements vscode.QuickPickItem {
     constructor(public label: string, public id: string) {
@@ -703,6 +699,25 @@ export class AwsProfilesProvider implements vscode.TreeDataProvider<vscode.TreeI
                         return;
                     }
                     this.removeResource(context.workspaceName, context.profileName, context.regionName, context.serviceName, context.label);
+                });
+            }
+        } catch (err) {
+            console.log(err);
+        }
+    }
+
+    handleCommandDownloadS3Object(context: any) {
+        try {
+            console.log('handling command [awstools.downloadS3Object]:', context);
+            if (context instanceof TreeItemS3Object) {
+                const options: vscode.SaveDialogOptions = {
+                    defaultUri: vscode.Uri.file(context.label),
+                };
+                vscode.window.showSaveDialog(options).then((uri: vscode.Uri | undefined) => {
+                    if (!uri) {
+                        return;
+                    }
+                    downloadS3Object(context.profileName, context.regionName, context.bucketName, context.key || '', uri.fsPath);
                 });
             }
         } catch (err) {

@@ -1,3 +1,5 @@
+import * as fs from 'fs';
+
 import * as vscode from 'vscode';
 import * as AWS from 'aws-sdk';
 
@@ -297,7 +299,7 @@ export const getS3Objects = (profileName: string, regionName: string, bucketName
                 if (data.Contents) {
                     for (let c of data.Contents) {
                         const label = makeLabel(c.Key, prefix);
-                        result.push(new TreeItemS3Object(label, c));
+                        result.push(new TreeItemS3Object(profileName, regionName, bucketName, c.Key, label, c));
                     }
                 }
 
@@ -314,6 +316,34 @@ export const getS3Objects = (profileName: string, regionName: string, bucketName
                 } else {
                     resolve(result);
                 }
+            });
+        };
+        callApi();
+    });
+};
+
+export const downloadS3Object = (profileName: string, regionName: string, bucketName: string, key: string, destination: string): Thenable<string> => {
+    return new Promise((resolve, reject) => {
+        const creds = new AWS.SharedIniFileCredentials({ profile: profileName });
+        const s3Client = new AWS.S3({ credentials: creds, region: regionName });
+
+        const params: AWS.S3.GetObjectRequest = {
+            Bucket: bucketName,
+            Key: key,
+        };
+
+        const callApi = () => {
+            s3Client.getObject(params, (err, data) => {
+                if (err) {
+                    console.error(err);
+                    reject(err);
+                }
+                if (!data) {
+                    reject('no data recieved');
+                }
+
+                fs.writeFileSync(destination, data.Body);
+                resolve(key);
             });
         };
         callApi();

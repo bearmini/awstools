@@ -20,17 +20,23 @@ export function activate(context: vscode.ExtensionContext) {
 		awsProfilesProvider.onTreeViewItemCollapsed(ev);
 	});
 
+	const commandAndHandlerPairs: { [index: string]: (...args: any[]) => any } = {
+		'awstools.addProfile': (context: any) => awsProfilesProvider.handleCommandAddProfile(context),
+		'awstools.removeProfile': (context: any) => awsProfilesProvider.handleCommandRemoveProfile(context),
+		'awstools.addRegion': (context: any) => awsProfilesProvider.handleCommandAddRegion(context),
+		'awstools.removeRegion': (context: any) => awsProfilesProvider.handleCommandRemoveRegion(context),
+		'awstools.addService': (context: any) => awsProfilesProvider.handleCommandAddService(context),
+		'awstools.removeService': (context: any) => awsProfilesProvider.handleCommandRemoveService(context),
+		'awstools.moveServiceUp': (context: any) => awsProfilesProvider.handleCommandMoveServiceUp(context),
+		'awstools.moveServiceDown': (context: any) => awsProfilesProvider.handleCommandMoveServiceDown(context),
+		'awstools.addResource': (context: any) => awsProfilesProvider.handleCommandAddResource(context),
+		'awstools.removeResource': (context: any) => awsProfilesProvider.handleCommandRemoveResource(context),
+		'awstools.downloadS3Object': (context: any) => awsProfilesProvider.handleCommandDownloadS3Object(context)
+	};
 
-	context.subscriptions.push(vscode.commands.registerCommand('awstools.addProfile', (context) => awsProfilesProvider.handleCommandAddProfile(context)));
-	context.subscriptions.push(vscode.commands.registerCommand('awstools.removeProfile', (context) => awsProfilesProvider.handleCommandRemoveProfile(context)));
-	context.subscriptions.push(vscode.commands.registerCommand('awstools.addRegion', (context) => awsProfilesProvider.handleCommandAddRegion(context)));
-	context.subscriptions.push(vscode.commands.registerCommand('awstools.removeRegion', (context) => awsProfilesProvider.handleCommandRemoveRegion(context)));
-	context.subscriptions.push(vscode.commands.registerCommand('awstools.addService', (context) => awsProfilesProvider.handleCommandAddService(context)));
-	context.subscriptions.push(vscode.commands.registerCommand('awstools.removeService', (context) => awsProfilesProvider.handleCommandRemoveService(context)));
-	context.subscriptions.push(vscode.commands.registerCommand('awstools.moveServiceUp', (context) => awsProfilesProvider.handleCommandMoveServiceUp(context)));
-	context.subscriptions.push(vscode.commands.registerCommand('awstools.moveServiceDown', (context) => awsProfilesProvider.handleCommandMoveServiceDown(context)));
-	context.subscriptions.push(vscode.commands.registerCommand('awstools.addResource', (context) => awsProfilesProvider.handleCommandAddResource(context)));
-	context.subscriptions.push(vscode.commands.registerCommand('awstools.removeResource', (context) => awsProfilesProvider.handleCommandRemoveResource(context)));
+	for (let key in commandAndHandlerPairs) {
+		context.subscriptions.push(vscode.commands.registerCommand(key, commandAndHandlerPairs[key]));
+	}
 }
 
 // this method is called when your extension is deactivated

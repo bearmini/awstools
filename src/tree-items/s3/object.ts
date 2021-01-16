@@ -10,7 +10,14 @@ export class TreeItemS3Object extends vscode.TreeItem {
      *   StorageClass: "STANDARD"
      * },
      */
-    constructor(public readonly label: string, public readonly obj: any) {
+    constructor(
+        public readonly profileName: string,
+        public readonly regionName: string,
+        public readonly bucketName: string,
+        public readonly key: string | undefined,
+        public readonly label: string,
+        public readonly obj: any
+    ) {
         super(label, vscode.TreeItemCollapsibleState.None);
         this.tooltip = `Size: ${this.obj.Size}`;
         this.description = '';

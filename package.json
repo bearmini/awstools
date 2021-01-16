@@ -64,6 +64,10 @@
 				"command": "awstools.removeResource",
 				"title": "AWS Tools: Remove Resource",
 				"icon": "$(remove)"
+			},
+			{
+				"command": "awstools.downloadS3Object",
+				"title": "Download"
 			}
 		],
 		"viewsWelcome": [
@@ -141,6 +145,10 @@
 					"command": "awstools.removeResource",
 					"when": "view == awstoolsWorkspaces && viewItem == awsResource",
 					"group": "inline"
+				},
+				{
+					"command": "awstools.downloadS3Object",
+					".when": "view == awstoolsWorkspaces && viewItem == s3Object"
 				}
 			]
 		}
